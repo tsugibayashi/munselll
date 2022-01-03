@@ -1,0 +1,77 @@
+#!/bin/bash
+# http://yamatyuu.net/other/color/munsell/index.html
+# https://www.jcri.jp/JCRI/hiroba/COLOR/buhou/161/161-5/161-5.htm
+
+### functions
+function munsell () {
+    # V = 0.0 to 10.0
+    local V=$1
+    local Y=`echo "1.1913 * $V - 0.22532 * $V^2 + 0.23351 * $V^3 - 0.020483 * $V^4 + 0.00081936 * $V^5" | bc -l`
+
+    # Y = 0 to 99.997
+    echo $Y
+}
+
+### variables
+RCFILE=$HOME/.lightrc
+DEFAULT_VALUE=3.5
+MAX_BRIGHTNESS=10
+STEP=1.0
+MIN_BRIGHTNESS=`echo "$STEP / 2" | bc -l | gawk '{printf "%.2f\n", $0}'`
+
+### main routine
+if [ ! -f /usr/bin/bc ]; then
+    echo '[Error] bc is not found.'
+    exit 1
+fi
+
+if [ ! -f $RCFILE ]; then
+    # update $RCFILE
+    echo $DEFAULT_VALUE > $RCFILE
+    # read $RCFILE
+    BRIGHTNESS=`cat $RCFILE`
+    # execute light
+    light -S `munsell $BRIGHTNESS`
+    exit 0
+fi
+
+if [ ! $1 ]; then
+    echo '[Error] input $1, action'
+    exit 1
+fi
+ACTION=$1
+
+case $ACTION in
+    s)
+        if [ ! $2 ]; then
+            echo '[Error] input $2, brightness (0.0 to 10.0)'
+            exit 1
+        fi
+        BRIGHTNESS=$2
+    ;;
+    p)
+        PRESENT_BRIGHTNESS=`cat $RCFILE`
+        if [ `echo "$PRESENT_BRIGHTNESS <= $MIN_BRIGHTNESS" | bc -l` == 1 ]; then
+            BRIGHTNESS=$STEP
+        else
+            BRIGHTNESS=`echo "$PRESENT_BRIGHTNESS + $STEP" | bc -l | gawk '{printf "%.2f\n", $0}'`
+        fi
+    ;;
+    m)
+        PRESENT_BRIGHTNESS=`cat $RCFILE`
+        BRIGHTNESS=`echo "$PRESENT_BRIGHTNESS - $STEP" | bc -l | gawk '{printf "%.2f\n", $0}'`
+    ;;
+esac
+
+if [ `echo "$BRIGHTNESS >= $MAX_BRIGHTNESS" | bc -l` == 1 ]; then
+    BRIGHTNESS=$MAX_BRIGHTNESS
+elif [ `echo "$BRIGHTNESS <= 0" | bc -l` == 1 ]; then
+    BRIGHTNESS=$MIN_BRIGHTNESS
+fi
+
+# update $RCFILE
+echo $BRIGHTNESS > $RCFILE
+
+# execute light
+light -S `munsell $BRIGHTNESS`
+
